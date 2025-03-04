@@ -181,103 +181,106 @@ class Pyhabot:
         await msg.send_back(f"Refresh interval módosítva: `{interval} sec`")
 
     async def _handle_add(self, msg: MessageBase, url):
-        watch_id = self.db.add_watch(url)
-        self.db.set_watch_notifyon(watch_id, msg.channel_id, self.chat_integration.name)
-        await self.handle_new_ads(self.db.get_watch(watch_id))
-        await msg.send_back(f"Sikeresen hozzáadva! - ID: `{watch_id}`")
+        watchid = self.db.add_watch(url)
+        self.db.set_watch_notifyon(watchid, msg.channel_id, self.chat_integration.name)
+        await self.handle_new_ads(self.db.get_watch(watchid))
+        await msg.send_back(f"Sikeresen hozzáadva! - ID: `{watchid}`")
 
-    async def _handle_remove(self, msg: MessageBase, watch_id):
+    async def _handle_remove(self, msg: MessageBase, watchid):
         try:
-            self.db.remove_watch(watch_id)
-            await msg.send_back(f"Sikeresen törölve! - ID: `{watch_id}`")
+            self.db.remove_watch(watchid)
+            await msg.send_back(f"Sikeresen törölve! - ID: `{watchid}`")
         except KeyError:
-            await msg.send_back(f"ID: `{watch_id}` nem létezik. Sikertelen törlés.")
+            await msg.send_back(f"ID: `{watchid}` nem létezik. Sikertelen törlés.")
 
     async def _handle_list(self, msg: MessageBase):
         txt = ""
         for doc in self.db.get_all_watch():
-            txt += f"{'\n' if txt else ''}ID: `{doc["id"]}` - {get_url_params(doc['url'])[0]}\n"
-        await msg.send_back(txt if txt else "Nincs még felvett hirdetésfigyelő!")
+            txt += f"{'\n' if txt else ''}ID: `{doc["id"]}` - {msg.format_hyperlink(get_url_params(doc['url'])[0], doc['url'])}\n"
+        await msg.send_back(txt if txt else "Nincs még felvett hirdetésfigyelő!", no_preview=True)
 
-    async def _handle_info(self, msg: MessageBase, watch_id):
-        watch = self.db.get_watch(watch_id)
+    async def _handle_info(self, msg: MessageBase, watchid):
+        watch = self.db.get_watch(watchid)
         if watch is None:
-            await msg.send_back(f"ID: `{watch_id}` nem létezik.")
+            await msg.send_back(f"ID: `{watchid}` nem létezik.")
             return
         stext, minprice, maxprice = get_url_params(watch["url"])
-        txt = f"ID: `{watch_id}`\n"
+        txt = f"ID: `{watchid}`\n"
         txt += f"Search text: {stext}\n"
         txt += f"Price limit: {minprice} - {maxprice} Ft\n"
         txt += f"Notify on: {watch['notifyon']['integration'] if watch['notifyon'] is not None else 'None'}\n"
         txt += f"Webhook: {'set' if watch['webhook'] is not None else 'None'}\n"
-        txt += f"Number of active ads: {len(self.db.get_active_advertisements(watch_id))} (all: {len(self.db.get_all_advertisements(watch_id))})\n"
-        txt += f"{msg.format_hyperlink('link', watch['url'])}"
+        txt += f"Number of active ads: {len(self.db.get_active_advertisements(watchid))} (all: {len(self.db.get_all_advertisements(watchid))})\n"
+        txt += f"{msg.format_hyperlink('link', watch['url'])}n"
         await msg.send_back(txt, no_preview=True)
 
-    async def _handle_seturl(self, msg: MessageBase, watch_id, url):
+    async def _handle_seturl(self, msg: MessageBase, watchid, url):
         try:
-            self.db.set_url(watch_id, url)
-            self.db.clear_advertisements(watch_id)
-            self.db.reset_watch_last_checked(watch_id)
-            await msg.send_back(f"URL módosítva! - ID: `{watch_id}`")
+            self.db.set_url(watchid, url)
+            self.db.clear_advertisements(watchid)
+            self.db.reset_watch_last_checked(watchid)
+            await msg.send_back(f"URL módosítva! - ID: `{watchid}`")
         except KeyError:
-            await msg.send_back(f"ID: `{watch_id}` nem létezik. Sikertelen módosítás.")
+            await msg.send_back(f"ID: `{watchid}` nem létezik. Sikertelen módosítás.")
 
-    async def _handle_notifyon(self, msg: MessageBase, watch_id):
+    async def _handle_notifyon(self, msg: MessageBase, watchid):
         try:
-            self.db.set_watch_notifyon(watch_id, msg.channel_id, self.chat_integration.name)
-            await msg.send_back(f"Értesítés beállítva! - ID: `{watch_id}`")
+            self.db.set_watch_notifyon(watchid, msg.channel_id, self.chat_integration.name)
+            await msg.send_back(f"Értesítés beállítva! - ID: `{watchid}`")
         except KeyError:
-            await msg.send_back(f"ID: `{watch_id}` nem létezik. Sikertelen módosítás.")
+            await msg.send_back(f"ID: `{watchid}` nem létezik. Sikertelen módosítás.")
 
-    async def _handle_setwebhook(self, msg: MessageBase, watch_id, url):
+    async def _handle_setwebhook(self, msg: MessageBase, watchid, url):
         try:
-            self.db.set_watch_webhook(watch_id, url)
-            await msg.send_back(f"Webhook URL beállítva! - ID: `{watch_id}`")
+            self.db.set_watch_webhook(watchid, url)
+            await msg.send_back(f"Webhook URL beállítva! - ID: `{watchid}`")
         except KeyError:
-            await msg.send_back(f"ID: `{watch_id}` nem létezik. Sikertelen módosítás.")
+            await msg.send_back(f"ID: `{watchid}` nem létezik. Sikertelen módosítás.")
 
-    async def _handle_unsetwebhook(self, msg: MessageBase, watch_id):
+    async def _handle_unsetwebhook(self, msg: MessageBase, watchid):
         try:
-            self.db.clear_watch_webhook(watch_id)
-            await msg.send_back(f"Webhook URL törölve! - ID: `{watch_id}`")
+            self.db.clear_watch_webhook(watchid)
+            await msg.send_back(f"Webhook URL törölve! - ID: `{watchid}`")
         except KeyError:
-            await msg.send_back(f"ID: `{watch_id}` nem létezik. Sikertelen módosítás.")
+            await msg.send_back(f"ID: `{watchid}` nem létezik. Sikertelen módosítás.")
 
-    async def _handle_rescrape(self, msg: MessageBase, watch_id):
-        if watch_id is None:
+    async def _handle_rescrape(self, msg: MessageBase, watchid):
+        if watchid is None:
             self.db.clear_all_advertisements()
             self.db.reset_all_watch_last_checked()
             await msg.send_back(f"Összes hirdetés újbóli átvizsgálása...")
         else:
-            watch = self.db.get_watch(watch_id)
+            watch = self.db.get_watch(watchid)
             if watch is None:
-                await msg.send_back(f"ID: `{watch_id}` nem létezik.")
+                await msg.send_back(f"ID: `{watchid}` nem létezik.")
                 return
-            self.db.clear_advertisements(watch_id)
-            self.db.reset_watch_last_checked(watch_id)
+            self.db.clear_advertisements(watchid)
+            self.db.reset_watch_last_checked(watchid)
             await self.handle_new_ads(watch)
-            await msg.send_back(f"ID: `{watch_id}` hirdetésújbóli átvizsgálása...")
+            await msg.send_back(f"ID: `{watchid}` hirdetésújbóli átvizsgálása...")
 
-    async def _handle_listads(self, msg: MessageBase, watch_id):
-        txt = ""
-        for ad in self.db.get_active_advertisements(watch_id):
-            txt += f"ID: `{ad["id"]}` - {msg.format_hyperlink(ad['title'], ad['url'])} - {ad['price']} Ft\n"
+    async def _handle_listads(self, msg: MessageBase, watchid):
+        active_text = ""
+        for ad in self.db.get_active_advertisements(watchid):
+            active_text += f"ID: `{ad["id"]}` - {msg.format_hyperlink(ad['title'], ad['url'])} - {ad['price']} Ft\n"
 
-        for ad in self.db.get_inactive_advertisements(watch_id):
-            txt += f"ID: `{ad["id"]}` - {msg.format_hyperlink(msg.strikethrough(ad['title']), ad['url'])} - {ad['price']} Ft\n"
+        inactive_text = ""
+        for ad in self.db.get_inactive_advertisements(watchid):
+            inactive_text += f"ID: `{ad["id"]}` - {msg.format_hyperlink(ad['title'], ad['url'])} - {ad['price']} Ft\n"
 
-        if txt:
-            await msg.send_back(txt, no_preview=True)
+        text = active_text + (("\nInaktív hirdetések:\n" + inactive_text) if inactive_text else "")
+
+        if text:
+            await msg.send_back(text, no_preview=True)
         else:
             await msg.send_back(
-                f"ID: `{watch_id}` vagy nem létezik a hirdetésfigyelő vagy nem tartoznak hozzá hirdetések."
+                f"ID: `{watchid}` vagy nem létezik a hirdetésfigyelő vagy nem tartoznak hozzá hirdetések."
             )
 
-    async def _handle_adinfo(self, msg: MessageBase, ad_id):
-        ad = self.db.get_advertisement(ad_id)
+    async def _handle_adinfo(self, msg: MessageBase, adid):
+        ad = self.db.get_advertisement(adid)
         if ad is None:
-            await msg.send_back(f"ID: `{ad_id}` nem létezik.")
+            await msg.send_back(f"ID: `{adid}` nem létezik.")
             return
 
         text = f"ID: `{ad['id']}`\n"
@@ -292,14 +295,14 @@ class Pyhabot:
         text += f"{msg.format_hyperlink("link", ad['url'])}\n"
         await msg.send_back(text)
 
-    async def _handle_setpricealert(self, msg: MessageBase, ad_id):
-        if self.db.set_advertisement_price_alert(ad_id, True):
-            await msg.send_back(f"Árváltozás követés beállítva! - ID: `{ad_id}`")
+    async def _handle_setpricealert(self, msg: MessageBase, adid):
+        if self.db.set_advertisement_price_alert(adid, True):
+            await msg.send_back(f"Árváltozás követés beállítva! - ID: `{adid}`")
         else:
-            await msg.send_back(f"ID: `{ad_id}` nem létezik. Sikertelen módosítás.")
+            await msg.send_back(f"ID: `{adid}` nem létezik. Sikertelen módosítás.")
 
-    async def _handle_unsetpricealert(self, msg: MessageBase, ad_id):
-        if self.db.set_advertisement_price_alert(ad_id, False):
-            await msg.send_back(f"Árváltozás követés kikapcsolva! - ID: `{ad_id}`")
+    async def _handle_unsetpricealert(self, msg: MessageBase, adid):
+        if self.db.set_advertisement_price_alert(adid, False):
+            await msg.send_back(f"Árváltozás követés kikapcsolva! - ID: `{adid}`")
         else:
-            await msg.send_back(f"ID: `{ad_id}` nem létezik. Sikertelen módosítás.")
+            await msg.send_back(f"ID: `{adid}` nem létezik. Sikertelen módosítás.")
