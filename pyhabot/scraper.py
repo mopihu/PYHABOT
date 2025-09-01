@@ -117,7 +117,8 @@ async def scrape_ads(url, session, user_agent=None, headers=None):
                         "image": ad.a.img["src"] if ad.a and ad.a.img else "",
                     }
 
-                    if all(new_entry.values()):
+                    required_fields = ['id', 'title', 'url', 'price', 'city', 'date', 'seller_name', 'seller_url', 'seller_rates', 'image']
+                    if all(new_entry.get(field) for field in required_fields):
                         ads.append(new_entry)
                     else:
                         logger.warning(f"Invalid new ad entry: {new_entry}")
