@@ -20,18 +20,39 @@ def get_url_params(url):
 
 
 def convert_date(expression):
-    now = datetime.now()
-    if expression.startswith("ma"):
-        time_part = expression.split()[1]
-        ret_date = datetime.strptime(time_part, "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-    elif expression.startswith("tegnap"):
-        time_part = expression.split()[1]
-        ret_date = datetime.strptime(time_part, "%H:%M").replace(
-            year=now.year, month=now.month, day=now.day
-        ) - timedelta(days=1)
+    import re
+    from datetime import datetime, timedelta
+
+    expression = expression.strip()
+
+    if re.match(r"\d{4}-\d{2}-\d{2}", expression):
+        try:
+            ret_date = datetime.strptime(expression, "%Y-%m-%d")
+            return ret_date.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            return None
+    elif re.match(r"ma \d{2}:\d{2}", expression):
+        try:
+            now = datetime.now()
+            time_part = expression.split()[1]
+            ret_date = datetime.strptime(time_part, "%H:%M").replace(year=now.year, month=now.month, day=now.day)
+            return ret_date.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            return None
+    elif re.match(r"tegnap \d{2}:\d{2}", expression):
+        try:
+            now = datetime.now()
+            time_part = expression.split()[1]
+            ret_date = datetime.strptime(time_part, "%H:%M").replace(
+                year=now.year, month=now.month, day=now.day
+            ) - timedelta(days=1)
+            return ret_date.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            return None
+    elif expression.lower() == "előresorolva":
+        return "pinned"
     else:
-        ret_date = datetime.strptime(expression, "%Y-%m-%d")
-    return ret_date.strftime("%Y-%m-%d %H:%M")
+        return None
 
 
 def convert_price(price: str):
@@ -81,13 +102,15 @@ async def scrape_ads(url, session, user_agent=None, headers=None):
                 price = ad.find("div", class_="uad-price")
 
                 if title and info:
+                    date_value = (lambda d: d if d is not None else "")(convert_date(info.find("div", class_="uad-time").time.text.strip())) if info.find("div", class_="uad-time") and info.find("div", class_="uad-time").time else ""
                     new_entry = {
                         "id": int(ad["data-uadid"]),
                         "title": title.h1.a.text.strip(),
                         "url": title.h1.a["href"],
                         "price": convert_price(price.span.text.strip()) if price and price.span else None,
                         "city": info.find("div", class_="uad-cities").text.strip() if info.find("div", class_="uad-cities") else "",
-                        "date": convert_date(info.find("div", class_="uad-time").time.text.strip()) if info.find("div", class_="uad-time") and info.find("div", class_="uad-time").time else "",
+                        "date": date_value,
+                        "pinned": date_value == "pinned",
                         "seller_name": info.find("span", class_="uad-user-text").a.text.strip() if info.find("span", class_="uad-user-text") and info.find("span", class_="uad-user-text").a else "",
                         "seller_url": base_url + info.find("span", class_="uad-user-text").a["href"] if info.find("span", class_="uad-user-text") and info.find("span", class_="uad-user-text").a else "",
                         "seller_rates": info.find("span", class_="uad-user-text").span.text.strip() if info.find("span", class_="uad-user-text") and info.find("span", class_="uad-user-text").span else "",

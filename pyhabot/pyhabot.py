@@ -159,10 +159,11 @@ class Pyhabot:
 
         # Construct alert message
         change_type = "increased" if current_price > last_price else "decreased"
+        date_display = "Pinned" if ad.get('pinned') else ad['date']
         txt = f"**Árváltozás: [{ad['title']}]({ad['url']})**\n"
         txt += f"Új ár: {current_price} Ft ({change_type})\n\n"
         txt += f"Előző ár: {last_price} Ft\n"
-        txt += f"**{ad['city']}** | {ad['date']} | {ad['seller_name']} ({ad['seller_rates']})\n"
+        txt += f"**{ad['city']}** | {date_display} | {ad['seller_name']} ({ad['seller_rates']})\n"
         txt += f"![Image]({ad['image']})"
 
         # Send notification if configured
@@ -191,8 +192,9 @@ class Pyhabot:
         stext, minprice, maxprice = get_url_params(watch["url"])
         txt = f"**{stext}**\n"
         txt += f"{minprice} - {maxprice} Ft\n\n"
+        date_display = "Pinned" if ad.get('pinned') else ad['date']
         txt += f"[{ad['title']}]({ad['url']})\n"
-        txt += f"**{ad['price']}** ({ad['city']}) ({ad['date']}) ({ad['seller_name']} {ad['seller_rates']})"
+        txt += f"**{ad['price']}** ({ad['city']}) ({date_display}) ({ad['seller_name']} {ad['seller_rates']})"
 
         notifyon = watch["notifyon"]
         if notifyon is not None:
@@ -333,11 +335,12 @@ class Pyhabot:
             await msg.send_back(f"ID: `{adid}` nem létezik.")
             return
 
+        date_display = "Pinned" if ad.get('pinned') else ad['date']
         text = f"ID: `{ad['id']}`\n"
         text += f"Cím: {ad['title']}\n"
         text += f"Ár: {ad['price']} Ft\n"
         text += f"Város: {ad['city']}\n"
-        text += f"Utolsó up: {ad['date']}\n"
+        text += f"Utolsó up: {date_display}\n"
         text += f"Feladó: {ad['seller_name']} ({ad['seller_rates']})\n"
         text += f"Watch ID: `{ad['watch_id']}`\n"
         text += f"Aktív: {"igen" if ad['active'] else "nem"}\n"
