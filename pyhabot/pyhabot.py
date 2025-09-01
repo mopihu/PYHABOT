@@ -30,7 +30,7 @@ class Pyhabot:
         self.config = ConfigHandler(persistent_data_path)
         self.db = DatabaseHandler(persistent_data_path)
         self.command = CommandHandler()
-        self.session = aiohttp.ClientSession()
+        self.session = None  # Will be created in _on_ready
 
         # Check robots.txt
         self._check_robots_txt()
@@ -67,7 +67,22 @@ class Pyhabot:
             await func(message)
 
     async def _on_ready(self):
+        # Create aiohttp session now that we have an event loop
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
         self.task = asyncio.get_event_loop().create_task(self.run_forever())
+
+    async def _get_session(self):
+        """Get or create aiohttp session"""
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+        return self.session
+
+    async def close(self):
+        """Close aiohttp session"""
+        if self.session:
+            await self.session.close()
+            self.session = None
 
     async def run_forever(self):
         tries = 0
@@ -110,8 +125,9 @@ class Pyhabot:
 
     async def _get_new_ads(self, watch):
         new_ads = []
+        session = await self._get_session()
         user_agent = random.choice(self.config.user_agents) if self.config.user_agents else None
-        ads = await scrape_ads(watch["url"], self.session, user_agent)
+        ads = await scrape_ads(watch["url"], session, user_agent)
         for ad in ads:
             try:
                 self.db.add_advertisement(ad, watch["id"])
@@ -166,8 +182,8 @@ class Pyhabot:
                 "avatar_url": "https://github.com/Patrick2562/PYHABOT/blob/master/assets/avatar.png",
                 "content": txt,
             }
-            async with aiohttp.ClientSession() as session:
-                await session.post(watch["webhook"], json=payload)
+            session = await self._get_session()
+            await session.post(watch["webhook"], json=payload)
 
         logger.info(f"Sent price change alert for {ad['title']} (was {last_price} Ft, now {current_price} Ft).")
 
@@ -193,8 +209,8 @@ class Pyhabot:
                 "avatar_url": "https://github.com/Patrick2562/PYHABOT/blob/master/assets/avatar.png",
                 "content": txt,
             }
-            async with aiohttp.ClientSession() as session:
-                await session.post(watch["webhook"], json=payload)
+            session = await self._get_session()
+            await session.post(watch["webhook"], json=payload)
 
     async def _handle_help(self, msg: MessageBase):
         await msg.send_back(f"```\n{self.command.help()}```")
