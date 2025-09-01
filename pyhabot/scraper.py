@@ -4,6 +4,7 @@ import logging
 import aiohttp
 from bs4 import BeautifulSoup
 import re
+import random
 
 
 logger = logging.getLogger("pyhabot_logger")
@@ -51,41 +52,52 @@ def convert_price(price: str):
     return None
 
 
-async def scrape_ads(url):
+async def scrape_ads(url, session, user_agent=None, headers=None):
     ads = []
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            parsed_url = urllib.parse.urlparse(url)
-            base_url = parsed_url.scheme + "://" + parsed_url.netloc
+    default_headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    }
+    if headers:
+        default_headers.update(headers)
+    if user_agent:
+        default_headers["User-Agent"] = user_agent
 
-            html = BeautifulSoup(await response.text(), "html.parser")
-            uad_list = html.find("div", class_="uad-list")
+    async with session.get(url, headers=default_headers) as response:
+        parsed_url = urllib.parse.urlparse(url)
+        base_url = parsed_url.scheme + "://" + parsed_url.netloc
 
-            if uad_list.ul and uad_list.ul.li:
-                medias = html.findAll(class_="media")
-                for ad in medias:
-                    title = ad.find("div", class_="uad-col-title")
-                    info = ad.find("div", class_="uad-col-info")
-                    price = ad.find("div", class_="uad-price")
+        html = BeautifulSoup(await response.text(), "html.parser")
+        uad_list = html.find("div", class_="uad-list")
 
-                    if title and info:
-                        new_entry = {
-                            "id": int(ad["data-uadid"]),
-                            "title": title.h1.a.text.strip(),
-                            "url": title.h1.a["href"],
-                            "price": convert_price(price.span.text.strip()),
-                            "city": info.find("div", class_="uad-cities").text.strip(),
-                            "date": convert_date(info.find("div", class_="uad-time").time.text.strip()),
-                            "seller_name": info.find("span", class_="uad-user-text").a.text.strip(),
-                            "seller_url": base_url + info.find("span", class_="uad-user-text").a["href"],
-                            "seller_rates": info.find("span", class_="uad-user-text").span.text.strip(),
-                            "image": ad.a.img["src"],
-                        }
+        if uad_list and uad_list.ul and uad_list.ul.li:
+            medias = html.findAll(class_="media")
+            for ad in medias:
+                title = ad.find("div", class_="uad-col-title")
+                info = ad.find("div", class_="uad-col-info")
+                price = ad.find("div", class_="uad-price")
 
-                        if all(new_entry.values()):
-                            ads.append(new_entry)
-                        else:
-                            logger.warning(f"Invalid new ad entry: {new_entry}")
+                if title and info:
+                    new_entry = {
+                        "id": int(ad["data-uadid"]),
+                        "title": title.h1.a.text.strip(),
+                        "url": title.h1.a["href"],
+                        "price": convert_price(price.span.text.strip()) if price and price.span else None,
+                        "city": info.find("div", class_="uad-cities").text.strip() if info.find("div", class_="uad-cities") else "",
+                        "date": convert_date(info.find("div", class_="uad-time").time.text.strip()) if info.find("div", class_="uad-time") and info.find("div", class_="uad-time").time else "",
+                        "seller_name": info.find("span", class_="uad-user-text").a.text.strip() if info.find("span", class_="uad-user-text") and info.find("span", class_="uad-user-text").a else "",
+                        "seller_url": base_url + info.find("span", class_="uad-user-text").a["href"] if info.find("span", class_="uad-user-text") and info.find("span", class_="uad-user-text").a else "",
+                        "seller_rates": info.find("span", class_="uad-user-text").span.text.strip() if info.find("span", class_="uad-user-text") and info.find("span", class_="uad-user-text").span else "",
+                        "image": ad.a.img["src"] if ad.a and ad.a.img else "",
+                    }
+
+                    if all(new_entry.values()):
+                        ads.append(new_entry)
                     else:
-                        logger.warning(f"Invalid ad entry: {ad}")
+                        logger.warning(f"Invalid new ad entry: {new_entry}")
+                else:
+                    logger.warning(f"Invalid ad entry: {ad}")
     return ads

@@ -3,6 +3,8 @@ import aiohttp
 import logging
 import os
 import sys
+import random
+from urllib.robotparser import RobotFileParser
 
 from .config_handler import ConfigHandler
 from .database_handler import DatabaseHandler
@@ -28,6 +30,10 @@ class Pyhabot:
         self.config = ConfigHandler(persistent_data_path)
         self.db = DatabaseHandler(persistent_data_path)
         self.command = CommandHandler()
+        self.session = aiohttp.ClientSession()
+
+        # Check robots.txt
+        self._check_robots_txt()
 
         for cmd in COMMANDS:
             self.command.register_callback(cmd, getattr(self, f"_handle_{cmd["command"]}"))
@@ -35,6 +41,21 @@ class Pyhabot:
         self.chat_integration.register_on_message_callback(self._on_message)
         self.chat_integration.register_on_ready_callback(self._on_ready)
         self.chat_integration.run()
+
+    def _check_robots_txt(self):
+        try:
+            rp = RobotFileParser()
+            rp.set_url("https://hardverapro.hu/robots.txt")
+            rp.read()
+            for ua in self.config.user_agents[:3]:  # Check first 3 user-agents
+                if not rp.can_fetch(ua, "/"):
+                    logger.warning(f"Robots.txt disallows scraping for user-agent: {ua}")
+                else:
+                    logger.info(f"Robots.txt allows scraping for user-agent: {ua}")
+            if not rp.can_fetch("*", "/"):
+                logger.warning("Robots.txt disallows scraping for all user-agents")
+        except Exception as e:
+            logger.warning(f"Failed to check robots.txt: {e}")
 
     async def _on_message(self, message: MessageBase):
         try:
@@ -52,19 +73,31 @@ class Pyhabot:
         tries = 0
         while True:
             try:
-                for watch in self.db.check_needed_for_watches(self.config.refresh_interval):
+                # Add jitter to refresh interval
+                jitter = random.uniform(-self.config.interval_jitter_percent / 100, self.config.interval_jitter_percent / 100)
+                jittered_interval = int(self.config.refresh_interval * (1 + jitter))
+                watches = self.db.check_needed_for_watches(jittered_interval)
+                for watch in watches:
                     num_of_new_ads = await self.handle_new_ads(watch)
                     logger.info(f"Scraped watch with ID: {watch['id']}, found {num_of_new_ads} new ads.")
+                    # Add random delay between watches
+                    if len(watches) > 1:
+                        delay = random.uniform(self.config.request_delay_min, self.config.request_delay_max)
+                        await asyncio.sleep(delay)
             except KeyboardInterrupt:
                 raise
             except Exception as exc:
-                if tries < 30:
+                if tries < self.config.max_retries:
                     tries += 1
+                    delay = self.config.retry_base_delay * (2 ** (tries - 1)) + random.uniform(0, 5)
                     logger.error(
-                        f"Failure while checking adverts. Retrying in {tries * 2} seconds.",
+                        f"Failure while checking adverts. Retrying in {delay:.1f} seconds.",
                         exc_info=exc,
                     )
-                    await asyncio.sleep(tries * 2)
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error("Max retries reached. Skipping this cycle.")
+                    tries = 0
             else:
                 tries = 0
                 await asyncio.sleep(10)
@@ -77,7 +110,8 @@ class Pyhabot:
 
     async def _get_new_ads(self, watch):
         new_ads = []
-        ads = await scrape_ads(watch["url"])
+        user_agent = random.choice(self.config.user_agents) if self.config.user_agents else None
+        ads = await scrape_ads(watch["url"], self.session, user_agent)
         for ad in ads:
             try:
                 self.db.add_advertisement(ad, watch["id"])
