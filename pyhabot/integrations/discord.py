@@ -21,8 +21,11 @@ class DiscordMessage(MessageBase):
         return self._msg.channel.id
 
     async def send_back(self, text, no_preview=False, **kwargs):
-        message = await self._msg.channel.send(text)
-        await message.edit(suppress=no_preview)
+        message = None
+        for chunk in self.split_to_chunks(text):
+            message = await self._msg.channel.send(chunk)
+            if no_preview:
+                await message.edit(suppress=no_preview)
         return message
 
     async def reply(self, text):
